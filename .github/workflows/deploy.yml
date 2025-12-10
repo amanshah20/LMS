@@ -54,11 +54,21 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
+      - name: Check Render Webhook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}" ]; then
+            echo "⚠️  WARNING: Render webhook not configured!"
+            echo "📖 Please add RENDER_DEPLOY_HOOK_BACKEND secret to your GitHub repository"
+            echo "🔗 https://github.com/amanshah20/LMS/settings/secrets/actions"
+            echo ""
+            echo "📚 Follow Step 1 in GITHUB_ACTIONS_SETUP.md to get the webhook URL"
+            exit 1
+          fi
+          
       - name: Deploy to Render
         run: |
           echo "🚀 Deploying Backend to Render..."
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
-        continue-on-error: true
         
       - name: Deployment Status
         run: |
@@ -72,6 +82,20 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Check Vercel Secrets
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "⚠️  WARNING: Vercel secrets not configured!"
+            echo "📖 Please add the following secrets to your GitHub repository:"
+            echo "   - VERCEL_TOKEN"
+            echo "   - VERCEL_ORG_ID"
+            echo "   - VERCEL_PROJECT_ID"
+            echo ""
+            echo "📚 Follow the guide in GITHUB_ACTIONS_SETUP.md"
+            echo "🔗 https://github.com/amanshah20/LMS/settings/secrets/actions"
+            exit 1
+          fi
       
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20
