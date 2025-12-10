@@ -1,0 +1,102 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Backend Tests
+  backend-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [14.x, 16.x, 18.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - name: Install Backend Dependencies
+      working-directory: ./backend
+      run: npm ci
+    
+    - name: Run Backend Linter
+      working-directory: ./backend
+      run: npm run lint --if-present
+    
+    - name: Run Backend Tests
+      working-directory: ./backend
+      run: npm test --if-present
+      env:
+        JWT_SECRET: test_secret
+        SESSION_SECRET: test_session
+    
+  # Frontend Tests
+  frontend-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [14.x, 16.x, 18.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+    
+    - name: Install Frontend Dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Run Frontend Linter
+      working-directory: ./frontend
+      run: npm run lint --if-present
+    
+    - name: Build Frontend
+      working-directory: ./frontend
+      run: npm run build
+    
+    - name: Run Frontend Tests
+      working-directory: ./frontend
+      run: npm test --if-present
+      env:
+        CI: true
+    
+  # Security Audit
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Security Audit - Backend
+      working-directory: ./backend
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+    
+    - name: Run Security Audit - Frontend
+      working-directory: ./frontend
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+    
+  # Code Quality
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check Code Formatting
+      run: |
+        echo "Checking code quality..."
+        # Add your linting commands here

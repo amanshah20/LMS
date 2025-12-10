@@ -1,0 +1,14 @@
+node_modules/
+.env
+*.log
+.DS_Store
+database.sqlite
+uploads/
+check-schemas.js
+diagnose-sections.js
+fix-*.js
+debug-*.js
+*.tmp
+*.temp
+.cache/
+coverage/
