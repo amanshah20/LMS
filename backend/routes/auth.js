@@ -72,17 +72,17 @@ router.post('/student/signup', [
     });
 
     console.log('✅ Student created successfully:', student.id);
-    const token = generateToken(existingStudent, 'student');
+    const token = generateToken(student, 'student');
 
     res.status(201).json({
       message: 'Student registered successfully',
       token,
       user: {
-        id: existingStudent.id,
-        fullName: existingStudent.fullName,
-        email: existingStudent.email,
-        studentId: existingStudent.studentId,
-        accessKey: existingStudent.accessKey,
+        id: student.id,
+        fullName: student.fullName,
+        email: student.email,
+        studentId: student.studentId,
+        accessKey: student.accessKey,
         role: 'student'
       }
     });
