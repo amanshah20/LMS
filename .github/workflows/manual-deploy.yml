@@ -1,0 +1,66 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install Dependencies
+        run: |
+          echo "📦 Installing Backend Dependencies..."
+          cd backend && npm ci
+          echo "📦 Installing Frontend Dependencies..."
+          cd ../frontend && npm ci
+      
+      - name: Build Frontend
+        run: |
+          echo "🔨 Building Frontend..."
+          cd frontend
+          npm run build
+        env:
+          CI: false
+          REACT_APP_API_URL: ${{ secrets.BACKEND_URL }}
+      
+      - name: Trigger Render Deployment
+        run: |
+          echo "🚀 Triggering Render Backend Deployment..."
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}" ]; then
+            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
+          else
+            echo "⚠️  RENDER_DEPLOY_HOOK_BACKEND not configured"
+          fi
+      
+      - name: Deploy to Vercel
+        run: |
+          echo "🚀 Deploying to Vercel..."
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            npm i -g vercel
+            cd frontend
+            vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            echo "⚠️  VERCEL_TOKEN not configured"
+          fi
+      
+      - name: Deployment Complete
+        run: |
+          echo "✅ Deployment completed for ${{ inputs.environment }}"
+          echo "🔗 Backend: ${{ secrets.BACKEND_URL }}"
+          echo "🔗 Frontend: ${{ secrets.FRONTEND_URL }}"

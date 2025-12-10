@@ -1,0 +1,96 @@
+name: Deploy LMS to Render & Vercel
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Build and Test Backend
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+        
+      - name: Check for Syntax Errors
+        working-directory: ./backend
+        run: node -c server.js
+
+  # Build and Test Frontend
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm ci
+        
+      - name: Build Frontend
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          CI: false
+          REACT_APP_API_URL: ${{ secrets.BACKEND_URL || 'http://localhost:5000' }}
+
+  # Deploy Backend to Render
+  deploy-backend:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Deploy to Render
+        run: |
+          echo "🚀 Deploying Backend to Render..."
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
+        continue-on-error: true
+        
+      - name: Deployment Status
+        run: |
+          echo "✅ Backend deployment triggered!"
+          echo "🔗 Check status at: https://dashboard.render.com"
+
+  # Deploy Frontend to Vercel
+  deploy-frontend:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./frontend
+          vercel-args: '--prod'
+
+  # Notify Deployment Status
+  notify:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "📊 Deployment Summary"
+          echo "══════════════════════"
+          echo "Backend: ${{ needs.deploy-backend.result }}"
+          echo "Frontend: ${{ needs.deploy-frontend.result }}"
