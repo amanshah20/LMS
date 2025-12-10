@@ -2,7 +2,6 @@
   "name": "lms-frontend",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://amanshah20.github.io/LMS",
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
