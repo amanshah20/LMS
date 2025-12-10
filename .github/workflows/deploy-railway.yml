@@ -1,0 +1,35 @@
+name: Deploy to Railway (Backend)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+        
+      - name: Deploy to Railway
+        run: |
+          if [ -n "${{ secrets.RAILWAY_TOKEN }}" ]; then
+            cd backend
+            railway up
+          else
+            echo "⚠️  WARNING: RAILWAY_TOKEN not set!"
+            echo "📖 Deploy manually to Railway.app instead"
+            echo "   1. Go to https://railway.app"
+            echo "   2. Sign in with GitHub"
+            echo "   3. Click 'New Project' → 'Deploy from GitHub repo'"
+            echo "   4. Select amanshah20/LMS repository"
+            echo "   5. Set root directory to 'backend'"
+            echo "   6. Railway will auto-deploy!"
+            exit 1
+          fi
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
