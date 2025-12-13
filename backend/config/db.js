@@ -1,18 +1,31 @@
 const { Sequelize } = require('sequelize');
+require('dotenv').config();
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: './database.sqlite',
-  logging: false
-});
+// Use PostgreSQL for production (Vercel), SQLite for development
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      },
+      logging: false
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: './database.sqlite',
+      logging: false
+    });
 
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ SQLite Database Connected Successfully');
+    console.log('✅ Database Connected Successfully');
     
     // Sync all models
-    await sequelize.sync();
+    await sequelize.sync({ alter: process.env.NODE_ENV === 'production' });
     console.log('✅ Database tables synchronized');
   } catch (error) {
     console.error('❌ Database Connection Error:', error.message);
