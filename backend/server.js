@@ -141,8 +141,8 @@ ClassmateMessage.belongsTo(Section, { foreignKey: 'sectionId' });
 Student.hasMany(ClassmateMessage, { foreignKey: 'studentId' });
 Section.hasMany(ClassmateMessage, { foreignKey: 'sectionId' });
 
-// Connect to Database
-connectDB();
+// Initialize database connection lazily
+// Don't call connectDB() here - it will be called on first request
 
 // Passport Config
 require('./config/passport')(passport);
@@ -170,6 +170,29 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Health Check (before DB middleware so it always responds)
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'Server is running', 
+    timestamp: new Date(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Database connection middleware - ensure DB is connected before each request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    res.status(503).json({ 
+      message: 'Database connection unavailable', 
+      error: process.env.NODE_ENV === 'production' ? 'Service temporarily unavailable' : error.message 
+    });
+  }
+});
 
 // Session Middleware (disabled for serverless - use JWT instead)
 // Note: Sessions don't persist in serverless environments
@@ -216,11 +239,6 @@ app.use('/api/sections', require('./routes/sections'));
 app.use('/api/offline-classes', require('./routes/offlineClasses'));
 app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/student/tools', require('./routes/studentTools'));
-
-// Health Check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'Server is running', timestamp: new Date() });
-});
 
 // Error Handler
 app.use((err, req, res, next) => {

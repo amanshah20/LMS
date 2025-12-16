@@ -25,21 +25,38 @@ const sequelize = process.env.DATABASE_URL
       logging: false
     });
 
+// Track if database is connected
+let isConnected = false;
+
 const connectDB = async () => {
+  if (isConnected) {
+    console.log('✅ Using existing database connection');
+    return true;
+  }
+  
   try {
     await sequelize.authenticate();
+    isConnected = true;
     console.log('✅ Database Connected Successfully');
     
-    // Sync all models (disable alter in production to prevent data loss)
-    await sequelize.sync({ alter: false });
-    console.log('✅ Database tables synchronized');
+    // DO NOT use sequelize.sync() in production serverless!
+    // Tables should already exist from your initial setup
+    // Use migrations for schema changes instead
+    if (process.env.NODE_ENV !== 'production') {
+      await sequelize.sync({ alter: false });
+      console.log('✅ Database tables synchronized');
+    }
+    
+    return true;
   } catch (error) {
     console.error('❌ Database Connection Error:', error.message);
-    console.error('Full error:', error);
+    isConnected = false;
+    
     // Don't exit process in serverless environment
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);
     }
+    return false;
   }
 };
 
