@@ -171,23 +171,31 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session Middleware
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+// Session Middleware (disabled for serverless - use JWT instead)
+// Note: Sessions don't persist in serverless environments
+// If you need Google OAuth, consider implementing a stateless flow
+if (process.env.NODE_ENV !== 'production') {
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'fallback-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+  
+  // Passport Middleware
+  app.use(passport.initialize());
+  app.use(passport.session());
+}
 
-// Passport Middleware
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Serve static files for uploads
-app.use('/uploads', express.static('uploads'));
+// Serve static files for uploads (disabled for Vercel - use cloud storage instead)
+// Note: Vercel has ephemeral filesystem, uploaded files will be lost
+// TODO: Implement Cloudinary or AWS S3 for file uploads
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/uploads', express.static('uploads'));
+}
 
 // Routes
 app.use('/api/auth', authRoutes);

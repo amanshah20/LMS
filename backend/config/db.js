@@ -30,13 +30,16 @@ const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ Database Connected Successfully');
     
-    // Sync all models
-    await sequelize.sync({ alter: process.env.NODE_ENV === 'production' });
+    // Sync all models (disable alter in production to prevent data loss)
+    await sequelize.sync({ alter: false });
     console.log('✅ Database tables synchronized');
   } catch (error) {
     console.error('❌ Database Connection Error:', error.message);
     console.error('Full error:', error);
-    process.exit(1);
+    // Don't exit process in serverless environment
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 };
 
