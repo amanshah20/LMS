@@ -1,8 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const session = require('express-session');
-const passport = require('passport');
 require('dotenv').config();
+
+// Startup logging
+console.log('🚀 Starting LMS Backend...');
+console.log('📍 Environment:', process.env.NODE_ENV || 'development');
+console.log('🗄️  Database:', process.env.DATABASE_URL ? 'PostgreSQL (Neon)' : 'SQLite (local)');
+
+// Only load session/passport in development (not needed in production serverless)
+const session = process.env.NODE_ENV !== 'production' ? require('express-session') : null;
+const passport = process.env.NODE_ENV !== 'production' ? require('passport') : null;
 
 const { connectDB } = require('./config/db');
 const authRoutes = require('./routes/auth');
@@ -144,8 +151,10 @@ Section.hasMany(ClassmateMessage, { foreignKey: 'sectionId' });
 // Initialize database connection lazily
 // Don't call connectDB() here - it will be called on first request
 
-// Passport Config
-require('./config/passport')(passport);
+// Passport Config (only in development)
+if (process.env.NODE_ENV !== 'production' && passport) {
+  require('./config/passport')(passport);
+}
 
 // Middleware
 const allowedOrigins = [

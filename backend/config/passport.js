@@ -1,10 +1,12 @@
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 
 module.exports = function(passport) {
   // Only configure Google OAuth if credentials are provided
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'your_google_client_id') {
+    // Lazy load GoogleStrategy only when actually needed
+    const GoogleStrategy = require('passport-google-oauth20').Strategy;
+    
     passport.use(
       new GoogleStrategy(
         {
