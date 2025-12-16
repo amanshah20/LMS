@@ -11,7 +11,7 @@ console.log('🗄️  Database:', process.env.DATABASE_URL ? 'PostgreSQL (Neon)'
 const session = process.env.NODE_ENV !== 'production' ? require('express-session') : null;
 const passport = process.env.NODE_ENV !== 'production' ? require('passport') : null;
 
-const { connectDB } = require('./config/db');
+const { connectDB, sequelize } = require('./config/db');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const liveClassRoutes = require('./routes/liveClasses');
@@ -58,7 +58,42 @@ const ClassmateMessage = require('./models/ClassmateMessage');
 // Initialize Express
 const app = express();
 
-// Setup model relationships
+// Global error handler for uncaught errors
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
+// Initialize database and setup relationships
+let dbInitialized = false;
+
+async function initializeDatabase() {
+  if (dbInitialized) {
+    return true;
+  }
+  
+  try {
+    console.log('🔄 Initializing database connection...');
+    await connectDB();
+    
+    // Setup model relationships AFTER DB is connected
+    console.log('🔄 Setting up model relationships...');
+    setupModelRelationships();
+    
+    dbInitialized = true;
+    console.log('✅ Database initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+    dbInitialized = false;
+    throw error;
+  }
+}
+
+function setupModelRelationships() {
 Assignment.hasMany(AssignmentSubmission, { foreignKey: 'assignmentId', as: 'submissions' });
 AssignmentSubmission.belongsTo(Assignment, { foreignKey: 'assignmentId', as: 'assignment' });
 LiveClass.belongsTo(Teacher, { foreignKey: 'teacherId' });
@@ -147,6 +182,7 @@ ClassmateMessage.belongsTo(Student, { foreignKey: 'studentId' });
 ClassmateMessage.belongsTo(Section, { foreignKey: 'sectionId' });
 Student.hasMany(ClassmateMessage, { foreignKey: 'studentId' });
 Section.hasMany(ClassmateMessage, { foreignKey: 'sectionId' });
+}
 
 // Initialize database connection lazily
 // Don't call connectDB() here - it will be called on first request
@@ -185,17 +221,23 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'Server is running', 
     timestamp: new Date(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    dbConnected: dbInitialized
   });
 });
 
 // Database connection middleware - ensure DB is connected before each request
 app.use(async (req, res, next) => {
   try {
-    await connectDB();
+    // Skip DB initialization for health check
+    if (req.path === '/api/health') {
+      return next();
+    }
+    
+    await initializeDatabase();
     next();
   } catch (error) {
-    console.error('Database connection failed:', error);
+    console.error('❌ Database connection failed:', error);
     res.status(503).json({ 
       message: 'Database connection unavailable', 
       error: process.env.NODE_ENV === 'production' ? 'Service temporarily unavailable' : error.message 
@@ -251,15 +293,42 @@ app.use('/api/student/tools', require('./routes/studentTools'));
 
 // Error Handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!', error: err.message });
+  console.error('❌ Error:', err.stack);
+  
+  // Handle specific error types
+  if (err.name === 'SequelizeConnectionError') {
+    return res.status(503).json({ 
+      message: 'Database connection error',
+      error: process.env.NODE_ENV === 'production' ? 'Service temporarily unavailable' : err.message 
+    });
+  }
+  
+  if (err.name === 'SequelizeValidationError') {
+    return res.status(400).json({ 
+      message: 'Validation error',
+      errors: err.errors.map(e => e.message)
+    });
+  }
+  
+  res.status(500).json({ 
+    message: 'Something went wrong!', 
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message 
+  });
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
 });
+
+// Start Server (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    await initializeDatabase();
+  });
+}
 
 // Export for serverless (Vercel)
 module.exports = app;

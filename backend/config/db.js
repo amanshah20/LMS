@@ -9,15 +9,20 @@ const sequelize = process.env.DATABASE_URL
         ssl: {
           require: true,
           rejectUnauthorized: false
-        }
+        },
+        connectTimeout: 60000
       },
       pool: {
-        max: 5,          // Maximum number of connections in pool
-        min: 0,          // Minimum number of connections in pool
-        acquire: 30000,  // Maximum time (ms) to try to get connection
-        idle: 10000      // Maximum time (ms) a connection can be idle
+        max: 3,          // Reduced for serverless
+        min: 0,
+        acquire: 60000,  // Increased timeout
+        idle: 10000,
+        evict: 10000
       },
-      logging: false
+      logging: false,
+      retry: {
+        max: 3
+      }
     })
   : new Sequelize({
       dialect: 'sqlite',
@@ -27,6 +32,8 @@ const sequelize = process.env.DATABASE_URL
 
 // Track if database is connected
 let isConnected = false;
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 3;
 
 const connectDB = async () => {
   if (isConnected) {
@@ -35,8 +42,12 @@ const connectDB = async () => {
   }
   
   try {
+    console.log(`🔄 Attempting database connection (attempt ${connectionAttempts + 1}/${MAX_CONNECTION_ATTEMPTS})...`);
+    
     await sequelize.authenticate();
     isConnected = true;
+    connectionAttempts = 0; // Reset on success
+    
     console.log('✅ Database Connected Successfully');
     
     // DO NOT use sequelize.sync() in production serverless!
@@ -51,12 +62,24 @@ const connectDB = async () => {
   } catch (error) {
     console.error('❌ Database Connection Error:', error.message);
     isConnected = false;
+    connectionAttempts++;
+    
+    // Retry logic for transient errors
+    if (connectionAttempts < MAX_CONNECTION_ATTEMPTS && 
+        (error.message.includes('ECONNREFUSED') || 
+         error.message.includes('ETIMEDOUT') ||
+         error.message.includes('timeout'))) {
+      console.log(`🔄 Retrying connection in 2 seconds...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return connectDB();
+    }
     
     // Don't exit process in serverless environment
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);
     }
-    return false;
+    
+    throw error; // Re-throw to be handled by caller
   }
 };
 
